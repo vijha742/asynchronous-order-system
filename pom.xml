@@ -20,22 +20,8 @@
     </modules>
     <properties>
         <java.version>21</java.version>
-        <spring-boot.version>4.1.0</spring-boot.version>
-        <spring-kafka.version>4.1.0</spring-kafka.version> <!-- Why do I need this? What does this
-        do? Is this even compatible -->
     </properties>
-    <dependencyManagement>
-        <dependencies>
-            <!-- Version pins so child POMs don't repeat versions -->
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
+
     <build>
         <plugins>
             <plugin>

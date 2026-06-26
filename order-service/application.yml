@@ -10,7 +10,7 @@ spring:
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.LongSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
 
   datasource:
     url: jdbc:postgresql://localhost:5433/orderdb
@@ -30,7 +30,3 @@ spring:
       ddl-auto: update
 
     open-in-view: false
-    properties:
-      hibernate:
-        type:
-          json_format_mapper: jackson

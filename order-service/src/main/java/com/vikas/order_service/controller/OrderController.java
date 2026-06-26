@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,7 +23,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<Order> getOrder(@RequestParam("id") long id) {
+    public ResponseEntity<Order> getOrder(@PathVariable Long id) {
         Optional<Order> order = orderService.getOrderById(id);
         if (order.isPresent()) {
             return ResponseEntity.ok(order.get());

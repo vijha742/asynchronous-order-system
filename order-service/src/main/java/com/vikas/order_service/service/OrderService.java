@@ -29,8 +29,8 @@ public class OrderService {
         order.setQuantity(quantity);
         order.setCreatedAt(System.currentTimeMillis());
         order.setUpdatedAt(System.currentTimeMillis());
-        orderRepository.save(order);
         kafkaTemplate.send("order-created", order);
+        orderRepository.save(order);
         return order;
     }
 }
