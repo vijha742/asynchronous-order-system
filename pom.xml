@@ -1,0 +1,48 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.eventorder</groupId>
+    <artifactId>event-order-system</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>   <!-- required for parent -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.1</version>
+        <relativePath /> <!-- lookup parent from repository -->
+    </parent>
+    <modules>
+        <module>order-service</module>
+        <module>payment-service</module>
+        <module>inventory-service</module>
+        <module>shared-events</module>
+    </modules>
+    <properties>
+        <java.version>21</java.version>
+        <spring-boot.version>4.1.0</spring-boot.version>
+        <spring-kafka.version>4.1.0</spring-kafka.version> <!-- Why do I need this? What does this
+        do? Is this even compatible -->
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <!-- Version pins so child POMs don't repeat versions -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

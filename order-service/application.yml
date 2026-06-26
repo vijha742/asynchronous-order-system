@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: order-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/orderdb
+    username: orderuser
+    password: orderpass
+
+    hikari:
+      max-lifetime: 270000
+      idle-timeout: 240000
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+      leak-detection-threshold: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    open-in-view: false
+    properties:
+      hibernate:
+        type:
+          json_format_mapper: jackson
