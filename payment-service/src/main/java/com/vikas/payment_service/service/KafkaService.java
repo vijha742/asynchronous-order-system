@@ -21,6 +21,7 @@ public class KafkaService {
     @KafkaListener(topics = "order.created", groupId = "payment-service")
     public void listen(OrderCreatedEvent event) {
         log.info("Event read: {}", event);
+        processPayment(event);
     }
 
     public boolean processPayment(OrderCreatedEvent event) {
@@ -31,16 +32,14 @@ public class KafkaService {
         }
 
         if (isPaymentSuccessful) {
-            PaymentEvent paymentProcessedEvent =
-                    new PaymentProcessedEvent(payment.getOrderId(), random.nextLong());
+            PaymentEvent paymentProcessedEvent = new PaymentProcessedEvent(event.getOrderId(), random.nextLong());
             kafkaTemplate.send("payment.success", paymentProcessedEvent);
-            log.info("Payment successful: {}", payment);
+            log.info("Payment successful: {}", event);
             return true;
         } else {
-            PaymentEvent paymentFailedEvent =
-                    new PaymentFailedEvent(payment.getOrderId(), random.nextLong());
+            PaymentEvent paymentFailedEvent = new PaymentFailedEvent(event.getOrderId(), random.nextLong());
             kafkaTemplate.send("payment.failure", paymentFailedEvent);
-            log.info("Payment failed: {}", payment);
+            log.info("Payment failed: {}", event);
             return false;
         }
     }
