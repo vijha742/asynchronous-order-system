@@ -19,6 +19,7 @@ public class Order {
 	@Id
 	private Long id;
 
+	private Long orderId;
 	private long productId;
 	private OrderStatus status;
 	private int quantity;

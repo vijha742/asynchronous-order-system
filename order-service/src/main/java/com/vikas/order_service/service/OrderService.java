@@ -11,6 +11,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.Random;
 
 @RequiredArgsConstructor
 @Service
@@ -25,6 +26,9 @@ public class OrderService {
 
     public Order publishOrderCreatedEvent(Long productId, Integer quantity) {
         Order order = new Order();
+        Random random = new Random();
+        Long orderId = random.nextLong();
+        order.setOrderId(orderId);
         order.setProductId(productId);
         order.setStatus(OrderStatus.PENDING);
         order.setQuantity(quantity);
@@ -32,8 +36,8 @@ public class OrderService {
         order.setCreatedAt(time);
         order.setUpdatedAt(time);
         orderRepository.save(order);
-        OrderCreatedEvent event = new OrderCreatedEvent(productId, quantity, time, time);
-        kafkaTemplate.send("order-created", event);
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, productId, quantity, time, time);
+        kafkaTemplate.send("order.created", event);
         return order;
     }
 }
