@@ -1,0 +1,34 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payment-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      properties: 
+        spring.json.trusted.packages: "*"
+
+  datasource:
+    url: jdbc:postgresql://localhost:5434/paymentdb
+    username: paymentuser
+    password: paymentpass
+
+    hikari:
+      max-lifetime: 270000
+      idle-timeout: 240000
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+      leak-detection-threshold: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    open-in-view: false
