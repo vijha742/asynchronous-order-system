@@ -1,16 +1,27 @@
 package com.vikas.shared.events;
 
 public class OrderCreatedEvent {
+    private Long orderId;
     private Long productId;
     private Integer quantity;
     private Long createdAt;
     private Long updatedAt;
 
-    public OrderCreatedEvent(Long productId, Integer quantity, Long createdAt, Long updatedAt) {
+    public OrderCreatedEvent(
+            Long orderId, Long productId, Integer quantity, Long createdAt, Long updatedAt) {
+        this.orderId = orderId;
         this.productId = productId;
         this.quantity = quantity;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    public Long getOrderId() {
+        return orderId;
+    }
+
+    public void setOrderId(Long orderId) {
+        this.orderId = orderId;
     }
 
     public Long getProductId() {
@@ -48,7 +59,9 @@ public class OrderCreatedEvent {
     @Override
     public String toString() {
         return "OrderCreatedEvent{"
-                + "productId="
+                + "orderId="
+                + orderId
+                + ", productId="
                 + productId
                 + ", quantity="
                 + quantity
