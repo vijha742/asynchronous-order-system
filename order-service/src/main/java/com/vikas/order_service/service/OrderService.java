@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @RequiredArgsConstructor
 @Service
@@ -27,7 +28,7 @@ public class OrderService {
     public Order publishOrderCreatedEvent(Long productId, Integer quantity) {
         Order order = new Order();
         Random random = new Random();
-        Long orderId = random.nextLong();
+        Long orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
         order.setOrderId(orderId);
         order.setProductId(productId);
         order.setStatus(OrderStatus.PENDING);
