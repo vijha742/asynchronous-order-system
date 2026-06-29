@@ -1,3 +1,4 @@
 package com.vikas.shared.events;
 
-public class InventoryEvent {}
+public abstract class InventoryEvent {
+}

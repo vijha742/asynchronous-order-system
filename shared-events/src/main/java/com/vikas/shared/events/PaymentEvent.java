@@ -1,4 +1,3 @@
 package com.vikas.shared.events;
 
-public class PaymentEvent {
-}
+public abstract class PaymentEvent {}
