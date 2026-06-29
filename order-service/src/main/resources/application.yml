@@ -5,12 +5,22 @@ spring:
   application:
     name: order-service
 
+  output:
+    ansi:
+      enabled: ALWAYS
+
   kafka:
     bootstrap-servers: localhost:9092
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.LongSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
 
   datasource:
     url: jdbc:postgresql://localhost:5433/orderdb
