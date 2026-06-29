@@ -1,3 +1,7 @@
+inventory:
+  reserved: inventory.reserved
+  insufficient: inventory.insufficient
+
 server:
   port: 8082
 
