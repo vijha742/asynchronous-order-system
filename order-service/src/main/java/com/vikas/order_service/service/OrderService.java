@@ -10,8 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 @RequiredArgsConstructor
@@ -25,9 +25,12 @@ public class OrderService {
         return orderRepository.findById(id);
     }
 
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
     public Order publishOrderCreatedEvent(Long productId, Integer quantity) {
         Order order = new Order();
-        Random random = new Random();
         Long orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
         order.setOrderId(orderId);
         order.setProductId(productId);

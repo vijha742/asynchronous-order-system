@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -27,6 +28,16 @@ public class OrderController {
         Optional<Order> order = orderService.getOrderById(id);
         if (order.isPresent()) {
             return ResponseEntity.ok(order.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Order>> getAllOrder() {
+        List<Order> orders = orderService.getAllOrders();
+        if (orders.size() > 0) {
+            return ResponseEntity.ok(orders);
         } else {
             return ResponseEntity.notFound().build();
         }
