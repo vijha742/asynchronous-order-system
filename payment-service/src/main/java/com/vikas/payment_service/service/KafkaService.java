@@ -47,7 +47,8 @@ public class KafkaService {
         paymentRepository.save(payment);
 
         if (isPaymentSuccessful) {
-            PaymentEvent paymentProcessedEvent = new PaymentProcessedEvent(event.getOrderId(), paymentId);
+            PaymentEvent paymentProcessedEvent = new PaymentProcessedEvent(event.getOrderId(), paymentId,
+                    event.getQuantity());
             publishPaymentEvent(paymentProcessedEvent);
         } else {
             PaymentEvent paymentFailedEvent = new PaymentFailedEvent(event.getOrderId(), paymentId);
