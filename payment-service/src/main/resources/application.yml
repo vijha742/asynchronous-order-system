@@ -36,3 +36,17 @@ spring:
       ddl-auto: update
 
     open-in-view: false
+
+logging:
+  level:
+    root: INFO
+
+    com.vikas: DEBUG
+
+    org.springframework: INFO
+
+    org.springframework.kafka: INFO
+
+    org.apache.kafka: WARN
+    org.apache.kafka.clients.consumer.ConsumerConfig: OFF
+    org.apache.kafka.clients.producer.ProducerConfig: OFF
