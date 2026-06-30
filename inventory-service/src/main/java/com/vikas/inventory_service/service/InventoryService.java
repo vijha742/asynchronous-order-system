@@ -1,7 +1,10 @@
 package com.vikas.inventory_service.service;
 
 import com.vikas.inventory_service.model.Item;
+import com.vikas.inventory_service.model.ReservationStatus;
+import com.vikas.inventory_service.model.StockReservation;
 import com.vikas.inventory_service.repository.InventoryRepository;
+import com.vikas.inventory_service.repository.StockReservationRepository;
 import com.vikas.shared.events.InventoryEvent;
 import com.vikas.shared.events.InventoryInsufficientEvent;
 import com.vikas.shared.events.InventoryReservedEvent;
@@ -13,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -22,8 +27,9 @@ import java.util.Optional;
 @Service
 public class InventoryService {
 
-    private final KafkaTemplate<Long, InventoryEvent> kafkaTemplate;
+    private final KafkaTemplate<String, InventoryEvent> kafkaTemplate;
     private final InventoryRepository inventoryRepository;
+    private final StockReservationRepository reservationRepository;
 
     @Value("${inventory.reserved}")
     private String inventoryReservedTopic;
@@ -32,31 +38,93 @@ public class InventoryService {
     private String inventoryInsufficientTopic;
 
     @KafkaListener(topics = "payment.processed", groupId = "inventory-service")
-    public void listen(PaymentProcessedEvent event) {
-        log.info("Payment event {}", event);
-        if (checkInventoryForAvailability(event)) publishReservedEvent(event.getOrderId());
-        else publishInsufficientEvent(event.getOrderId());
-    }
+    public void onPaymentProcessed(PaymentProcessedEvent event) {
+        log.info(
+                "Processing inventory reservation: orderId={}, productId={}, qty={}",
+                event.getOrderId(),
+                event.getProductId(),
+                event.getQuantity());
 
-    public boolean checkInventoryForAvailability(PaymentProcessedEvent event) {
-        Optional<Item> temp = inventoryRepository.findByProductId(event.getOrderId());
-        if (temp.isPresent()) {
-            Item item = temp.get();
-            if (item.getQuantity() < event.getQuantity()) {
-                return false;
-            }
-            return true;
+        if (reservationRepository.existsByOrderId(event.getOrderId())) {
+            log.warn("Duplicate event received for orderId={} — skipping", event.getOrderId());
+            return;
         }
-        return false;
+
+        try {
+            boolean reserved = reserveStock(event);
+            if (reserved) {
+                InventoryReservedEvent reservedEvent = new InventoryReservedEvent(
+                        event.getOrderId(), event.getProductId(), event.getQuantity());
+                kafkaTemplate.send(inventoryReservedTopic, event.getOrderId(), reservedEvent);
+                log.info(
+                        "Stock reserved: orderId={}, productId={}, qty={}",
+                        event.getOrderId(),
+                        event.getProductId(),
+                        event.getQuantity());
+            } else {
+                InventoryInsufficientEvent insufficientEvent = new InventoryInsufficientEvent(
+                        event.getOrderId(), event.getProductId(),
+                        event.getQuantity(), event.getPaymentId());
+                kafkaTemplate.send(
+                        inventoryInsufficientTopic, event.getOrderId(), insufficientEvent);
+                log.warn(
+                        "Insufficient stock: orderId={}, productId={}, requested={}",
+                        event.getOrderId(),
+                        event.getProductId(),
+                        event.getQuantity());
+            }
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            log.error(
+                    "Optimistic lock conflict reserving stock for orderId={} — will retry via"
+                            + " Kafka",
+                    event.getOrderId());
+            throw ex;
+        }
     }
 
-    public void publishReservedEvent(Long orderId) {
-        InventoryEvent reserved = new InventoryReservedEvent(orderId);
-        kafkaTemplate.send(inventoryReservedTopic, reserved);
-    }
+    /**
+     * Atomically checks and decrements stock within a single transaction. The
+     * {@code @Version}
+     * field on {@link Item} ensures concurrent reservations are serialised via
+     * optimistic locking —
+     * preventing oversell.
+     *
+     * @return true if reservation succeeded, false if stock is insufficient or
+     *         product not found
+     */
+    @Transactional
+    public boolean reserveStock(PaymentProcessedEvent event) {
+        Optional<Item> opt = inventoryRepository.findByProductId(event.getProductId());
 
-    public void publishInsufficientEvent(Long orderId) {
-        InventoryEvent insufficient = new InventoryInsufficientEvent(orderId);
-        kafkaTemplate.send(inventoryInsufficientTopic, insufficient);
+        if (opt.isEmpty()) {
+            log.warn("Product not found in inventory: productId={}", event.getProductId());
+            return false;
+        }
+
+        Item item = opt.get();
+        if (item.getQuantity() < event.getQuantity()) {
+            log.warn(
+                    "Insufficient quantity for productId={}: available={}, requested={}",
+                    event.getProductId(),
+                    item.getQuantity(),
+                    event.getQuantity());
+            return false;
+        }
+
+        // Decrement stock — @Version triggers optimistic lock check on save
+        item.setQuantity(item.getQuantity() - event.getQuantity());
+        inventoryRepository.save(item);
+
+        // Record the reservation for the refund saga (Week 4)
+        StockReservation reservation = new StockReservation();
+        reservation.setOrderId(event.getOrderId());
+        reservation.setPaymentId(event.getPaymentId());
+        reservation.setProductId(event.getProductId());
+        reservation.setQuantity(event.getQuantity());
+        reservation.setStatus(ReservationStatus.RESERVED);
+        reservation.setCreatedAt(System.currentTimeMillis());
+        reservationRepository.save(reservation);
+
+        return true;
     }
 }

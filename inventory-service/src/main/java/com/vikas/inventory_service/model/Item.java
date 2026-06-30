@@ -2,17 +2,25 @@ package com.vikas.inventory_service.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 
-@RequiredArgsConstructor
 @Data
+@NoArgsConstructor
 @Entity
+@Table(name = "items")
 public class Item {
 
     @Id
     private Long productId;
+
+    private String name;
     private Integer quantity;
-    private Long price;
+    private Double price;
+
+    @Version
+    private Long version;
 }
