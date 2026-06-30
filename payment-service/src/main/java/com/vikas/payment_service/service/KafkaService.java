@@ -3,7 +3,10 @@ package com.vikas.payment_service.service;
 import com.vikas.payment_service.model.Payment;
 import com.vikas.payment_service.model.PaymentStatus;
 import com.vikas.payment_service.repository.PaymentRepository;
-import com.vikas.shared.events.*;
+import com.vikas.shared.events.OrderCreatedEvent;
+import com.vikas.shared.events.PaymentEvent;
+import com.vikas.shared.events.PaymentFailedEvent;
+import com.vikas.shared.events.PaymentProcessedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,56 +16,54 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 @Component
 @Slf4j
 public class KafkaService {
 
-    private final KafkaTemplate<Long, PaymentEvent> kafkaTemplate;
+    private final KafkaTemplate<String, PaymentEvent> kafkaTemplate;
     private final PaymentRepository paymentRepository;
 
     @KafkaListener(topics = "order.created", groupId = "payment-service")
-    public void listen(OrderCreatedEvent event) {
-        log.info("Event read: {}", event);
+    public void onOrderCreated(OrderCreatedEvent event) {
+        log.info("Order received for payment processing: orderId={}, productId={}, qty={}",
+                event.getOrderId(), event.getProductId(), event.getQuantity());
         processPayment(event);
     }
 
-    public void processPayment(OrderCreatedEvent event) {
-        boolean isPaymentSuccessful = false;
-        Random random = new Random();
-        Long paymentId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
-        if (random.nextBoolean()) {
-            isPaymentSuccessful = true;
-        }
+    private void processPayment(OrderCreatedEvent event) {
+        String paymentId = UUID.randomUUID().toString();
+        boolean success = new Random().nextInt(100) < 80; // 80% success rate per spec
+
+        double amount = event.getQuantity() * 100.0;
 
         Payment payment = new Payment();
         payment.setPaymentId(paymentId);
         payment.setOrderId(event.getOrderId());
-        payment.setCreatedAt(System.currentTimeMillis());
-        payment.setUpdatedAt(System.currentTimeMillis());
-        payment.setAmount(event.getQuantity() * 100.0);
-        payment.setStatus(isPaymentSuccessful ? PaymentStatus.CONFIRMED : PaymentStatus.FAILED);
+        payment.setProductId(event.getProductId());   // ← forwarded — needed for refund saga
+        payment.setQuantity(event.getQuantity());
+        payment.setAmount(amount);
+        payment.setStatus(success ? PaymentStatus.CONFIRMED : PaymentStatus.FAILED);
         paymentRepository.save(payment);
 
-        if (isPaymentSuccessful) {
-            PaymentEvent paymentProcessedEvent = new PaymentProcessedEvent(event.getOrderId(), paymentId,
-                    event.getQuantity());
-            publishPaymentEvent(paymentProcessedEvent);
+        if (success) {
+            PaymentProcessedEvent processed = new PaymentProcessedEvent(
+                    event.getOrderId(),
+                    paymentId,
+                    event.getProductId(),   // ← critical: Inventory needs this to find the stock row
+                    event.getQuantity(),
+                    amount);
+            kafkaTemplate.send("payment.processed", event.getOrderId(), processed);
+            log.info("Payment successful: orderId={}, paymentId={}", event.getOrderId(), paymentId);
         } else {
-            PaymentEvent paymentFailedEvent = new PaymentFailedEvent(event.getOrderId(), paymentId);
-            publishPaymentEvent(paymentFailedEvent);
-        }
-    }
-
-    public void publishPaymentEvent(PaymentEvent event) {
-        if (event instanceof PaymentProcessedEvent) {
-            kafkaTemplate.send("payment.processed", event);
-            log.info("Payment successful: {}", event);
-        } else if (event instanceof PaymentFailedEvent) {
-            kafkaTemplate.send("payment.failed", event);
-            log.info("Payment failed: {}", event);
+            PaymentFailedEvent failed = new PaymentFailedEvent(
+                    event.getOrderId(),
+                    paymentId,
+                    "PAYMENT_DECLINED");
+            kafkaTemplate.send("payment.failed", event.getOrderId(), failed);
+            log.info("Payment declined: orderId={}, paymentId={}", event.getOrderId(), paymentId);
         }
     }
 }
