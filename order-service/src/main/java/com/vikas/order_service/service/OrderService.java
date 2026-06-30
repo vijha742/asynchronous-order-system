@@ -6,42 +6,46 @@ import com.vikas.order_service.repository.OrderRepository;
 import com.vikas.shared.events.OrderCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.UUID;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final KafkaTemplate<Long, OrderCreatedEvent> kafkaTemplate;
+    private final KafkaTemplate<String, OrderCreatedEvent> kafkaTemplate;
 
-    public Optional<Order> getOrderById(long id) {
-        return orderRepository.findById(id);
+    public Optional<Order> getOrderById(String orderId) {
+        return orderRepository.findById(orderId);
     }
 
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
 
-    public Order publishOrderCreatedEvent(Long productId, Integer quantity) {
+    public Order createOrder(Long productId, Integer quantity) {
+        String orderId = UUID.randomUUID().toString();
+
         Order order = new Order();
-        Long orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
         order.setOrderId(orderId);
         order.setProductId(productId);
-        order.setStatus(OrderStatus.PENDING);
         order.setQuantity(quantity);
-        Long time = System.currentTimeMillis();
-        order.setCreatedAt(time);
-        order.setUpdatedAt(time);
+        order.setStatus(OrderStatus.PENDING);
         orderRepository.save(order);
-        OrderCreatedEvent event = new OrderCreatedEvent(orderId, productId, quantity, time, time);
-        kafkaTemplate.send("order.created", event);
+
+        // Publish event — orderId is the canonical key used by all downstream services
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, productId, quantity, order.getCreatedAt());
+        kafkaTemplate.send("order.created", orderId, event);
+        log.info("Order created and event published: orderId={}, productId={}, quantity={}", orderId, productId, quantity);
+
         return order;
     }
 }

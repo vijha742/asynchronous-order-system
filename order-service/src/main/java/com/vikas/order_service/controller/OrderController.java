@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -23,30 +22,28 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Order> getOrder(@PathVariable Long id) {
-        Optional<Order> order = orderService.getOrderById(id);
-        if (order.isPresent()) {
-            return ResponseEntity.ok(order.get());
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    /** GET /api/v1/orders/{orderId} — orderId is the UUID returned on creation */
+    @GetMapping("/{orderId}")
+    public ResponseEntity<Order> getOrder(@PathVariable String orderId) {
+        return orderService.getOrderById(orderId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping
-    public ResponseEntity<List<Order>> getAllOrder() {
+    public ResponseEntity<List<Order>> getAllOrders() {
         List<Order> orders = orderService.getAllOrders();
-        if (orders.size() > 0) {
-            return ResponseEntity.ok(orders);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        return orders.isEmpty()
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.ok(orders);
     }
 
+    /** POST /api/v1/orders?productId=1&quantity=2 */
     @PostMapping
     public ResponseEntity<Order> createOrder(
-            @RequestParam Long productId, @RequestParam Integer quantity) {
-        Order order = orderService.publishOrderCreatedEvent(productId, quantity);
-        return ResponseEntity.ok(order);
+            @RequestParam Long productId,
+            @RequestParam Integer quantity) {
+        Order order = orderService.createOrder(productId, quantity);
+        return ResponseEntity.status(201).body(order);
     }
 }
