@@ -1,33 +1,14 @@
 package com.vikas.shared.events;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class PaymentFailedEvent extends PaymentEvent {
-
-    private Long orderId;
-    private Long paymentId;
-
-    public PaymentFailedEvent(Long orderId, Long paymentId) {
-        this.orderId = orderId;
-        this.paymentId = paymentId;
-    }
-
-    public Long getOrderId() {
-        return orderId;
-    }
-
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
-    }
-
-    public Long getPaymentId() {
-        return paymentId;
-    }
-
-    public void setPaymentId(Long paymentId) {
-        this.paymentId = paymentId;
-    }
-
-    @Override
-    public String toString() {
-        return "PaymentFailedEvent [orderId=" + orderId + ", paymentId=" + paymentId + "]";
-    }
+    private String orderId;
+    private String paymentId;
+    private String reason;
 }
