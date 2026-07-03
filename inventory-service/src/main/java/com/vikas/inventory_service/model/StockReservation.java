@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,4 +31,7 @@ public class StockReservation {
     private ReservationStatus status;
 
     private Long createdAt;
+
+    @Version
+    private Integer version;
 }
