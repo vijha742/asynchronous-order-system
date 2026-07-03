@@ -37,15 +37,21 @@ public class KafkaService {
 
     @KafkaListener(topics = "inventory.reserved", groupId = "order-service")
     public void onInventoryReserved(InventoryReservedEvent event) {
-        log.info("Inventory reserved for orderId={}, productId={}, qty={}",
-                event.getOrderId(), event.getProductId(), event.getQuantity());
+        log.info(
+                "Inventory reserved for orderId={}, productId={}, qty={}",
+                event.getOrderId(),
+                event.getProductId(),
+                event.getQuantity());
         updateOrderStatus(event.getOrderId(), OrderStatus.CONFIRMED);
     }
 
     @KafkaListener(topics = "inventory.insufficient", groupId = "order-service")
     public void onInventoryInsufficient(InventoryInsufficientEvent event) {
-        log.info("Inventory insufficient for orderId={}, productId={}, requested={}",
-                event.getOrderId(), event.getProductId(), event.getQuantityRequested());
+        log.info(
+                "Inventory insufficient for orderId={}, productId={}, requested={}",
+                event.getOrderId(),
+                event.getProductId(),
+                event.getQuantityRequested());
         updateOrderStatus(event.getOrderId(), OrderStatus.INVENTORY_FAILED);
     }
 
@@ -53,9 +59,16 @@ public class KafkaService {
         Optional<Order> opt = orderRepository.findById(orderId);
         if (opt.isPresent()) {
             Order order = opt.get();
-            log.debug("Order {} transitioning {} → {}", orderId, order.getStatus(), newStatus);
-            order.setStatus(newStatus);
-            orderRepository.save(order);
+            if (newStatus.comesAfter(order.getStatus())) {
+                log.debug("Order {} transitioning {} → {}", orderId, order.getStatus(), newStatus);
+                order.setStatus(newStatus);
+                orderRepository.save(order);
+            } else {
+                log.debug(
+                        "Order state stored has priority. Hence the order state will not change,"
+                                + " Order : {}",
+                        orderId);
+            }
         } else {
             log.warn("Received event for unknown orderId={}", orderId);
         }
