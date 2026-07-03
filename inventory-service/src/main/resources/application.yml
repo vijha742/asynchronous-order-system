@@ -21,6 +21,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
+      auto-offset-reset: earliest
 
   datasource:
     url: jdbc:postgresql://localhost:5435/inventorydb
