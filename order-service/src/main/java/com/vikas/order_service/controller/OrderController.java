@@ -22,10 +22,10 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    /** GET /api/v1/orders/{orderId} — orderId is the UUID returned on creation */
     @GetMapping("/{orderId}")
     public ResponseEntity<Order> getOrder(@PathVariable String orderId) {
-        return orderService.getOrderById(orderId)
+        return orderService
+                .getOrderById(orderId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -33,16 +33,12 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<List<Order>> getAllOrders() {
         List<Order> orders = orderService.getAllOrders();
-        return orders.isEmpty()
-                ? ResponseEntity.noContent().build()
-                : ResponseEntity.ok(orders);
+        return orders.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(orders);
     }
 
-    /** POST /api/v1/orders?productId=1&quantity=2 */
     @PostMapping
     public ResponseEntity<Order> createOrder(
-            @RequestParam Long productId,
-            @RequestParam Integer quantity) {
+            @RequestParam Long productId, @RequestParam Integer quantity) {
         Order order = orderService.createOrder(productId, quantity);
         return ResponseEntity.status(201).body(order);
     }

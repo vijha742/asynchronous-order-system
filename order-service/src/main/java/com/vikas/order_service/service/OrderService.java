@@ -41,10 +41,13 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING);
         orderRepository.save(order);
 
-        // Publish event — orderId is the canonical key used by all downstream services
         OrderCreatedEvent event = new OrderCreatedEvent(orderId, productId, quantity, order.getCreatedAt());
         kafkaTemplate.send("order.created", orderId, event);
-        log.info("Order created and event published: orderId={}, productId={}, quantity={}", orderId, productId, quantity);
+        log.info(
+                "Order created and event published: orderId={}, productId={}, quantity={}",
+                orderId,
+                productId,
+                quantity);
 
         return order;
     }
