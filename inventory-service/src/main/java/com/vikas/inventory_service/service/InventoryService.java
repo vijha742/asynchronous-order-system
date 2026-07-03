@@ -1,9 +1,12 @@
 package com.vikas.inventory_service.service;
 
+import com.vikas.inventory_service.model.EventStatus;
 import com.vikas.inventory_service.model.Item;
+import com.vikas.inventory_service.model.ProcessedEvents;
 import com.vikas.inventory_service.model.ReservationStatus;
 import com.vikas.inventory_service.model.StockReservation;
 import com.vikas.inventory_service.repository.InventoryRepository;
+import com.vikas.inventory_service.repository.ProcessedEventsRepository;
 import com.vikas.inventory_service.repository.StockReservationRepository;
 import com.vikas.shared.events.InventoryEvent;
 import com.vikas.shared.events.InventoryInsufficientEvent;
@@ -30,6 +33,7 @@ public class InventoryService {
     private final KafkaTemplate<String, InventoryEvent> kafkaTemplate;
     private final InventoryRepository inventoryRepository;
     private final StockReservationRepository reservationRepository;
+    private final ProcessedEventsRepository processedEventsRepository;
 
     @Value("${inventory.reserved}")
     private String inventoryReservedTopic;
@@ -53,18 +57,24 @@ public class InventoryService {
         try {
             boolean reserved = reserveStock(event);
             if (reserved) {
-                InventoryReservedEvent reservedEvent = new InventoryReservedEvent(
-                        event.getOrderId(), event.getProductId(), event.getQuantity());
+                InventoryReservedEvent reservedEvent =
+                        new InventoryReservedEvent(
+                                event.getOrderId(), event.getProductId(), event.getQuantity());
                 kafkaTemplate.send(inventoryReservedTopic, event.getOrderId(), reservedEvent);
+                processedEventsRepository.save(
+                        new ProcessedEvents(event.getOrderId(), EventStatus.RESERVED));
                 log.info(
                         "Stock reserved: orderId={}, productId={}, qty={}",
                         event.getOrderId(),
                         event.getProductId(),
                         event.getQuantity());
             } else {
-                InventoryInsufficientEvent insufficientEvent = new InventoryInsufficientEvent(
-                        event.getOrderId(), event.getProductId(),
-                        event.getQuantity(), event.getPaymentId());
+                InventoryInsufficientEvent insufficientEvent =
+                        new InventoryInsufficientEvent(
+                                event.getOrderId(), event.getProductId(),
+                                event.getQuantity(), event.getPaymentId());
+                processedEventsRepository.save(
+                        new ProcessedEvents(event.getOrderId(), EventStatus.FAILED));
                 kafkaTemplate.send(
                         inventoryInsufficientTopic, event.getOrderId(), insufficientEvent);
                 log.warn(
@@ -83,17 +93,23 @@ public class InventoryService {
     }
 
     /**
-     * Atomically checks and decrements stock within a single transaction. The
-     * {@code @Version}
-     * field on {@link Item} ensures concurrent reservations are serialised via
-     * optimistic locking —
+     * Atomically checks and decrements stock within a single transaction. The {@code @Version}
+     * field on {@link Item} ensures concurrent reservations are serialised via optimistic locking —
      * preventing oversell.
      *
-     * @return true if reservation succeeded, false if stock is insufficient or
-     *         product not found
+     * @return true if reservation succeeded, false if stock is insufficient or product not found
      */
     @Transactional
     public boolean reserveStock(PaymentProcessedEvent event) {
+        Optional<ProcessedEvents> processedKey =
+                processedEventsRepository.findById(event.getOrderId());
+        if (processedKey.isPresent()) {
+            log.warn(
+                    "Event has already been processed for order {} with orderId {}",
+                    event,
+                    event.getOrderId());
+            return true;
+        }
         Optional<Item> opt = inventoryRepository.findByProductId(event.getProductId());
 
         if (opt.isEmpty()) {
@@ -111,11 +127,9 @@ public class InventoryService {
             return false;
         }
 
-        // Decrement stock — @Version triggers optimistic lock check on save
         item.setQuantity(item.getQuantity() - event.getQuantity());
         inventoryRepository.save(item);
 
-        // Record the reservation for the refund saga (Week 4)
         StockReservation reservation = new StockReservation();
         reservation.setOrderId(event.getOrderId());
         reservation.setPaymentId(event.getPaymentId());
