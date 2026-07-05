@@ -22,6 +22,7 @@ spring:
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "*"
       auto-offset-reset: earliest
