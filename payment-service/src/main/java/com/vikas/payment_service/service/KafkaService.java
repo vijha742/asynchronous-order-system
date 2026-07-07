@@ -7,7 +7,6 @@ import com.vikas.payment_service.model.ProcessedEvents;
 import com.vikas.payment_service.repository.PaymentRepository;
 import com.vikas.payment_service.repository.ProcessedEventsRepository;
 import com.vikas.shared.events.OrderCreatedEvent;
-import com.vikas.shared.events.PaymentEvent;
 import com.vikas.shared.events.PaymentFailedEvent;
 import com.vikas.shared.events.PaymentProcessedEvent;
 
@@ -30,8 +29,7 @@ import java.util.UUID;
 @Slf4j
 public class KafkaService {
 
-        private final KafkaTemplate<String, PaymentEvent> kafkaTemplate;
-        private final KafkaTemplate<String, OrderCreatedEvent> kafkaDltTemplate;
+        private final KafkaTemplate<String, Object> kafkaTemplate;
         private final PaymentRepository paymentRepository;
         private final ProcessedEventsRepository processedEventsRepository;
 
@@ -92,7 +90,7 @@ public class KafkaService {
 
         @DltHandler
         public void listenDlt(OrderCreatedEvent event) {
-                kafkaDltTemplate.send("order.dlt", event);
+                kafkaTemplate.send("order.dlt", event);
                 log.info("Event added to DLT for paymentEvent {}", event);
         }
 }
