@@ -8,7 +8,3 @@ for i in $(seq 1 10); do
 done
 wait
 echo "Done: 10 concurrent orders fired"
-Make it executable and run:
-chmod +x manual-test.sh && ./manual-test.sh
-If curl is all you have inline:
-for i in {1..10}; do pid=$((i%3+1)); qty=$((RANDOM%98+1)); curl -s -X POST "http://localhost:8080/api/v1/orders?productId=$pid&quantity=$qty" & done; wait
