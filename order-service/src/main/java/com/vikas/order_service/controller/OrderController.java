@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,12 +40,8 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<String> createOrder(
-            @RequestBody @Valid CreateOrderDTO orderReq, BindingResult bindingResult) {
-        if (bindingResult.hasFieldErrors())
-            return ResponseEntity.badRequest()
-                    .body("The order isn't valid..." + bindingResult.getAllErrors());
-        Order order = orderService.createOrder(orderReq.getProductId(), orderReq.getQuantity());
-        return ResponseEntity.status(201).body(order.toString());
+    public ResponseEntity<Order> createOrder(@RequestBody @Valid CreateOrderDTO orderReq) {
+        Order order = orderService.createOrder(orderReq.productId(), orderReq.quantity());
+        return ResponseEntity.status(201).body(order);
     }
 }
