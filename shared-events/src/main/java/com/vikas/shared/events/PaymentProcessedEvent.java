@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class PaymentProcessedEvent extends PaymentEvent {
+public class PaymentProcessedEvent {
     private String orderId;
     private String paymentId;
     private Long productId;
