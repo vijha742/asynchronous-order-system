@@ -17,7 +17,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.BackOff;
+import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ import java.util.Optional;
 public class InventoryService {
 
     private final KafkaTemplate<String, InventoryEvent> kafkaTemplate;
+    private final KafkaTemplate<String, PaymentProcessedEvent> paymentKafkaTemplate;
     private final InventoryRepository inventoryRepository;
     private final StockReservationRepository reservationRepository;
     private final ProcessedEventsRepository processedEventsRepository;
@@ -41,6 +45,9 @@ public class InventoryService {
     @Value("${inventory.insufficient}")
     private String inventoryInsufficientTopic;
 
+    @RetryableTopic(
+            attempts = "4",
+            backOff = @BackOff(delay = 1000, multiplier = 2, maxDelay = 5000))
     @KafkaListener(topics = "payment.processed", groupId = "inventory-service")
     public void onPaymentProcessed(PaymentProcessedEvent event) {
         log.info(
@@ -71,8 +78,10 @@ public class InventoryService {
             } else {
                 InventoryInsufficientEvent insufficientEvent =
                         new InventoryInsufficientEvent(
-                                event.getOrderId(), event.getProductId(),
-                                event.getQuantity(), event.getPaymentId());
+                                event.getOrderId(),
+                                event.getProductId(),
+                                event.getQuantity(),
+                                event.getPaymentId());
                 processedEventsRepository.save(
                         new ProcessedEvents(event.getOrderId(), EventStatus.FAILED));
                 kafkaTemplate.send(
@@ -140,5 +149,11 @@ public class InventoryService {
         reservationRepository.save(reservation);
 
         return true;
+    }
+
+    @DltHandler
+    public void listenDLT(PaymentProcessedEvent event) {
+        paymentKafkaTemplate.send("inventory.dlt", event);
+        log.info("Event added to DLT for paymentEvent {}", event);
     }
 }
