@@ -17,6 +17,4 @@ public class ProcessedEvents {
 
     @Id
     private String id;
-
-    private EventStatus status;
 }
