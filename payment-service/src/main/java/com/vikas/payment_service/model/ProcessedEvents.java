@@ -13,8 +13,5 @@ import lombok.NoArgsConstructor;
 @Table(name = "processed_event_ids")
 public class ProcessedEvents {
 
-    @Id
-    private String orderId;
-
-    private EventStatus status;
+    @Id private String orderId;
 }
