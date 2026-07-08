@@ -2,7 +2,11 @@ package com.vikas.order_service.service;
 
 import com.vikas.order_service.model.Order;
 import com.vikas.order_service.model.OrderStatus;
+import com.vikas.order_service.model.ProcessedInventoryEvents;
+import com.vikas.order_service.model.ProcessedPaymentEvents;
 import com.vikas.order_service.repository.OrderRepository;
+import com.vikas.order_service.repository.ProcessedInventoryEventsRepository;
+import com.vikas.order_service.repository.ProcessedPaymentEventsRepository;
 import com.vikas.shared.events.InventoryInsufficientEvent;
 import com.vikas.shared.events.InventoryReservedEvent;
 import com.vikas.shared.events.PaymentFailedEvent;
@@ -11,6 +15,7 @@ import com.vikas.shared.events.PaymentProcessedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -22,15 +27,25 @@ import java.util.Optional;
 public class KafkaService {
 
     private final OrderRepository orderRepository;
+    private final ProcessedInventoryEventsRepository processedInventoryEventsRepository;
+    private final ProcessedPaymentEventsRepository processedPaymentEventsRepository;
 
     @KafkaListener(topics = "payment.processed", groupId = "order-service")
     public void onPaymentProcessed(PaymentProcessedEvent event) {
         log.info("Payment confirmed for orderId={}", event.getOrderId());
+        try {
+            processedPaymentEventsRepository.saveAndFlush(
+                    new ProcessedPaymentEvents(event.getOrderId()));
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate event — skipping: orderId={}", event.getOrderId());
+            return;
+        }
         updateOrderStatus(event.getOrderId(), OrderStatus.PAYMENT_CONFIRMED);
     }
 
     @KafkaListener(topics = "payment.failed", groupId = "order-service")
     public void onPaymentFailed(PaymentFailedEvent event) {
+        if (processedPaymentEventsRepository.findById(event.getOrderId()).isPresent()) return;
         log.info("Payment failed for orderId={}, reason={}", event.getOrderId(), event.getReason());
         updateOrderStatus(event.getOrderId(), OrderStatus.PAYMENT_FAILED);
     }
@@ -42,11 +57,19 @@ public class KafkaService {
                 event.getOrderId(),
                 event.getProductId(),
                 event.getQuantity());
+        try {
+            processedInventoryEventsRepository.saveAndFlush(
+                    new ProcessedInventoryEvents(event.getOrderId()));
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate event — skipping: orderId={}", event.getOrderId());
+            return;
+        }
         updateOrderStatus(event.getOrderId(), OrderStatus.CONFIRMED);
     }
 
     @KafkaListener(topics = "inventory.insufficient", groupId = "order-service")
     public void onInventoryInsufficient(InventoryInsufficientEvent event) {
+        if (processedInventoryEventsRepository.findById(event.getOrderId()).isPresent()) return;
         log.info(
                 "Inventory insufficient for orderId={}, productId={}, requested={}",
                 event.getOrderId(),
@@ -59,15 +82,15 @@ public class KafkaService {
         Optional<Order> opt = orderRepository.findById(orderId);
         if (opt.isPresent()) {
             Order order = opt.get();
-            if (newStatus.comesAfter(order.getStatus())) {
+            if (order.getStatus().canTransitionTo(newStatus)) {
                 log.debug("Order {} transitioning {} → {}", orderId, order.getStatus(), newStatus);
                 order.setStatus(newStatus);
                 orderRepository.save(order);
             } else {
                 log.debug(
-                        "Order state stored has priority. Hence the order state will not change,"
-                                + " Order : {}",
-                        orderId);
+                        "Order state stored has priority or transition is invalid. Hence the order state will not change,"
+                                + " Order : {}, Status: {}, Requested Status: {}",
+                        orderId, order.getStatus(), newStatus);
             }
         } else {
             log.warn("Received event for unknown orderId={}", orderId);
