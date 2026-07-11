@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class PaymentFailedEvent extends PaymentEvent {
+public class PaymentFailedEvent {
     private String orderId;
     private String paymentId;
     private String reason;

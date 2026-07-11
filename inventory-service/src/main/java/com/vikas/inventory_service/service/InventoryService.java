@@ -1,11 +1,9 @@
 package com.vikas.inventory_service.service;
 
-import com.vikas.inventory_service.model.Item;
-import com.vikas.inventory_service.model.ReservationStatus;
-import com.vikas.inventory_service.model.StockReservation;
-import com.vikas.inventory_service.repository.InventoryRepository;
-import com.vikas.inventory_service.repository.StockReservationRepository;
-import com.vikas.shared.events.InventoryEvent;
+import com.vikas.inventory_service.model.DLTEvent;
+import com.vikas.inventory_service.model.DLTStatus;
+import com.vikas.inventory_service.repository.DLTRepository;
+import com.vikas.inventory_service.service.InventoryReservationService.ReservationResultType;
 import com.vikas.shared.events.InventoryInsufficientEvent;
 import com.vikas.shared.events.InventoryReservedEvent;
 import com.vikas.shared.events.PaymentProcessedEvent;
@@ -14,22 +12,24 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.BackOff;
+import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class InventoryService {
 
-    private final KafkaTemplate<String, InventoryEvent> kafkaTemplate;
-    private final InventoryRepository inventoryRepository;
-    private final StockReservationRepository reservationRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final InventoryReservationService inventoryReservationService;
+    private final DLTRepository dltRepository;
 
     @Value("${inventory.reserved}")
     private String inventoryReservedTopic;
@@ -37,6 +37,9 @@ public class InventoryService {
     @Value("${inventory.insufficient}")
     private String inventoryInsufficientTopic;
 
+    @RetryableTopic(
+            attempts = "4",
+            backOff = @BackOff(delay = 1000, multiplier = 2, maxDelay = 5000))
     @KafkaListener(topics = "payment.processed", groupId = "inventory-service")
     public void onPaymentProcessed(PaymentProcessedEvent event) {
         log.info(
@@ -45,86 +48,48 @@ public class InventoryService {
                 event.getProductId(),
                 event.getQuantity());
 
-        if (reservationRepository.existsByOrderId(event.getOrderId())) {
-            log.warn("Duplicate event received for orderId={} — skipping", event.getOrderId());
-            return;
-        }
+        ReservationResultType result = inventoryReservationService.reserveStock(event);
 
-        try {
-            boolean reserved = reserveStock(event);
-            if (reserved) {
-                InventoryReservedEvent reservedEvent = new InventoryReservedEvent(
-                        event.getOrderId(), event.getProductId(), event.getQuantity());
-                kafkaTemplate.send(inventoryReservedTopic, event.getOrderId(), reservedEvent);
-                log.info(
-                        "Stock reserved: orderId={}, productId={}, qty={}",
-                        event.getOrderId(),
-                        event.getProductId(),
-                        event.getQuantity());
-            } else {
-                InventoryInsufficientEvent insufficientEvent = new InventoryInsufficientEvent(
-                        event.getOrderId(), event.getProductId(),
-                        event.getQuantity(), event.getPaymentId());
-                kafkaTemplate.send(
-                        inventoryInsufficientTopic, event.getOrderId(), insufficientEvent);
-                log.warn(
-                        "Insufficient stock: orderId={}, productId={}, requested={}",
-                        event.getOrderId(),
-                        event.getProductId(),
-                        event.getQuantity());
-            }
-        } catch (ObjectOptimisticLockingFailureException ex) {
-            log.error(
-                    "Optimistic lock conflict reserving stock for orderId={} — will retry via"
-                            + " Kafka",
-                    event.getOrderId());
-            throw ex;
+        if (result == ReservationResultType.SUCCESS) {
+            InventoryReservedEvent reservedEvent =
+                    new InventoryReservedEvent(
+                            event.getOrderId(), event.getProductId(), event.getQuantity());
+            kafkaTemplate.send(inventoryReservedTopic, event.getOrderId(), reservedEvent);
+            log.info(
+                    "Stock reserved: orderId={}, productId={}, qty={}",
+                    event.getOrderId(),
+                    event.getProductId(),
+                    event.getQuantity());
+        } else if (result == ReservationResultType.INSUFFICIENT_STOCK
+                || result == ReservationResultType.PRODUCT_NOT_FOUND) {
+            InventoryInsufficientEvent insufficientEvent =
+                    new InventoryInsufficientEvent(
+                            event.getOrderId(),
+                            event.getProductId(),
+                            event.getQuantity(),
+                            event.getPaymentId());
+            kafkaTemplate.send(inventoryInsufficientTopic, event.getOrderId(), insufficientEvent);
+            log.warn(
+                    "Insufficient stock: orderId={}, productId={}, requested={}",
+                    event.getOrderId(),
+                    event.getProductId(),
+                    event.getQuantity());
         }
     }
 
-    /**
-     * Atomically checks and decrements stock within a single transaction. The
-     * {@code @Version}
-     * field on {@link Item} ensures concurrent reservations are serialised via
-     * optimistic locking —
-     * preventing oversell.
-     *
-     * @return true if reservation succeeded, false if stock is insufficient or
-     *         product not found
-     */
-    @Transactional
-    public boolean reserveStock(PaymentProcessedEvent event) {
-        Optional<Item> opt = inventoryRepository.findByProductId(event.getProductId());
+    @DltHandler
+    public void handleDlt(PaymentProcessedEvent event) {
+        kafkaTemplate.send("inventory.dlt", event);
+        DLTEvent dltEvent = new DLTEvent();
+        dltEvent.processedEventToDlt(event);
+        dltEvent.setStatus(DLTStatus.PENDING);
+        dltRepository.save(dltEvent);
+        log.info("Event added to DLT for paymentEvent {}", event);
+    }
 
-        if (opt.isEmpty()) {
-            log.warn("Product not found in inventory: productId={}", event.getProductId());
-            return false;
-        }
-
-        Item item = opt.get();
-        if (item.getQuantity() < event.getQuantity()) {
-            log.warn(
-                    "Insufficient quantity for productId={}: available={}, requested={}",
-                    event.getProductId(),
-                    item.getQuantity(),
-                    event.getQuantity());
-            return false;
-        }
-
-        // Decrement stock — @Version triggers optimistic lock check on save
-        item.setQuantity(item.getQuantity() - event.getQuantity());
-        inventoryRepository.save(item);
-
-        // Record the reservation for the refund saga (Week 4)
-        StockReservation reservation = new StockReservation();
-        reservation.setOrderId(event.getOrderId());
-        reservation.setPaymentId(event.getPaymentId());
-        reservation.setProductId(event.getProductId());
-        reservation.setQuantity(event.getQuantity());
-        reservation.setStatus(ReservationStatus.RESERVED);
-        reservation.setCreatedAt(System.currentTimeMillis());
-        reservationRepository.save(reservation);
-
-        return true;
+    // TODO: Implement this for learning...
+    public List<DLTEvent> consumeDlt(int count) {
+        List<DLTEvent> events = new ArrayList<>();
+        return events;
     }
 }

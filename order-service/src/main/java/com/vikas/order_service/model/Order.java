@@ -17,7 +17,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "orders")
 public class Order {
 
-    /** Business key — UUID set by OrderService before persist. Also the event key. */
     @Id
     private String orderId;
 

@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class InventoryReservedEvent extends InventoryEvent {
+public class InventoryReservedEvent {
     private String orderId;
     private Long productId;
     private Integer quantity;

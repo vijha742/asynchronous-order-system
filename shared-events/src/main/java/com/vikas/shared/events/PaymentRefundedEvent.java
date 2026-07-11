@@ -7,9 +7,8 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class InventoryInsufficientEvent {
+public class PaymentRefundedEvent {
     private String orderId;
-    private Long productId;
-    private Integer quantityRequested;
-    private String paymentId; // needed for refund...
+    private String paymentId;
+    private String reason;
 }

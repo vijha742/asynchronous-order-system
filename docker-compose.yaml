@@ -22,7 +22,14 @@ services:
       POSTGRES_USER: orderuser
       POSTGRES_PASSWORD: orderpass
     ports:
-      - "5433:5432" 
+      - "5433:5432"
+    volumes:
+      - postgres-order-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderuser -d orderdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   postgres-payment:
     image: postgres:15
     environment:
@@ -31,6 +38,13 @@ services:
       POSTGRES_PASSWORD: paymentpass
     ports:
       - "5434:5432"
+    volumes:
+      - postgres-payment-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paymentuser -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   postgres-inventory:
     image: postgres:15
     environment:
@@ -39,3 +53,15 @@ services:
       POSTGRES_PASSWORD: inventorypass
     ports:
       - "5435:5432"
+    volumes:
+      - postgres-inventory-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventoryuser -d inventorydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-order-data:
+  postgres-payment-data:
+  postgres-inventory-data:
