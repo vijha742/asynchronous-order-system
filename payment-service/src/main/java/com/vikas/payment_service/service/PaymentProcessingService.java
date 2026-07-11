@@ -5,6 +5,7 @@ import com.vikas.payment_service.model.PaymentStatus;
 import com.vikas.payment_service.model.ProcessedEvents;
 import com.vikas.payment_service.repository.PaymentRepository;
 import com.vikas.payment_service.repository.ProcessedEventsRepository;
+import com.vikas.shared.events.InventoryInsufficientEvent;
 import com.vikas.shared.events.OrderCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.UUID;
 
@@ -31,7 +33,8 @@ public class PaymentProcessingService {
         ALREADY_PROCESSED
     }
 
-    public record PaymentResult(PaymentResultType type, String paymentId, double amount) {}
+    public record PaymentResult(PaymentResultType type, String paymentId, double amount) {
+    }
 
     @Transactional
     public PaymentResult processPayment(OrderCreatedEvent event) {
@@ -44,7 +47,9 @@ public class PaymentProcessingService {
         try {
             processedEventsRepository.saveAndFlush(new ProcessedEvents(event.getOrderId()));
         } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            log.warn("Duplicate payment event detected via DB constraint: orderId={}", event.getOrderId());
+            log.warn(
+                    "Duplicate payment event detected via DB constraint: orderId={}",
+                    event.getOrderId());
             return new PaymentResult(PaymentResultType.ALREADY_PROCESSED, null, 0.0);
         }
 
@@ -68,5 +73,17 @@ public class PaymentProcessingService {
             log.info("Payment declined: orderId={}, paymentId={}", event.getOrderId(), paymentId);
             return new PaymentResult(PaymentResultType.FAILED, paymentId, amount);
         }
+    }
+
+    @Transactional
+    public Payment processRefund(InventoryInsufficientEvent event) {
+        Payment payment = paymentRepository.findById(event.getPaymentId())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "Cannot refund: payment not found for paymentId=" + event.getPaymentId()));
+
+        payment.setStatus(PaymentStatus.REFUNDED);
+        Payment saved = paymentRepository.save(payment);
+        log.info("Refund processed: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
+        return saved;
     }
 }

@@ -11,6 +11,7 @@ import com.vikas.shared.events.InventoryInsufficientEvent;
 import com.vikas.shared.events.InventoryReservedEvent;
 import com.vikas.shared.events.PaymentFailedEvent;
 import com.vikas.shared.events.PaymentProcessedEvent;
+import com.vikas.shared.events.PaymentRefundedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +46,8 @@ public class KafkaService {
 
     @KafkaListener(topics = "payment.failed", groupId = "order-service")
     public void onPaymentFailed(PaymentFailedEvent event) {
-        if (processedPaymentEventsRepository.findById(event.getOrderId()).isPresent()) return;
+        if (processedPaymentEventsRepository.findById(event.getOrderId()).isPresent())
+            return;
         log.info("Payment failed for orderId={}, reason={}", event.getOrderId(), event.getReason());
         updateOrderStatus(event.getOrderId(), OrderStatus.PAYMENT_FAILED);
     }
@@ -69,13 +71,31 @@ public class KafkaService {
 
     @KafkaListener(topics = "inventory.insufficient", groupId = "order-service")
     public void onInventoryInsufficient(InventoryInsufficientEvent event) {
-        if (processedInventoryEventsRepository.findById(event.getOrderId()).isPresent()) return;
+        if (processedInventoryEventsRepository.findById(event.getOrderId()).isPresent())
+            return;
         log.info(
                 "Inventory insufficient for orderId={}, productId={}, requested={}",
                 event.getOrderId(),
                 event.getProductId(),
                 event.getQuantityRequested());
         updateOrderStatus(event.getOrderId(), OrderStatus.INVENTORY_FAILED);
+    }
+
+    @KafkaListener(topics = "payment.refunded", groupId = "order-service")
+    public void onPaymentRefunded(PaymentRefundedEvent event) {
+        String idempotencyKey = "REFUND:" + event.getOrderId();
+        try {
+            processedPaymentEventsRepository.saveAndFlush(
+                    new ProcessedPaymentEvents(idempotencyKey));
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate refund event — skipping: orderId={}", event.getOrderId());
+            return;
+        }
+        log.info(
+                "Refund confirmed for orderId={}, paymentId={} — transitioning to CANCELLED",
+                event.getOrderId(),
+                event.getPaymentId());
+        updateOrderStatus(event.getOrderId(), OrderStatus.CANCELLED);
     }
 
     private void updateOrderStatus(String orderId, OrderStatus newStatus) {
@@ -85,12 +105,15 @@ public class KafkaService {
             if (order.getStatus().canTransitionTo(newStatus)) {
                 log.debug("Order {} transitioning {} → {}", orderId, order.getStatus(), newStatus);
                 order.setStatus(newStatus);
-                orderRepository.save(order);
+                orderRepository.saveAndFlush(order);
             } else {
                 log.debug(
-                        "Order state stored has priority or transition is invalid. Hence the order state will not change,"
-                                + " Order : {}, Status: {}, Requested Status: {}",
-                        orderId, order.getStatus(), newStatus);
+                        "Order state stored has priority or transition is invalid. Hence the order"
+                                + " state will not change, Order : {}, Status: {}, Requested Status:"
+                                + " {}",
+                        orderId,
+                        order.getStatus(),
+                        newStatus);
             }
         } else {
             log.warn("Received event for unknown orderId={}", orderId);
