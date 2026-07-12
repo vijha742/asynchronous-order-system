@@ -1,0 +1,23 @@
+# Global configuration options
+global:
+  scrape_interval: 15s # How frequently to scrape targets (default: 1m)
+  evaluation_interval: 15s # How frequently to evaluate alerting rules (default: 1m)
+  scrape_timeout: 10s # Timeout limit for individual scrape requests
+
+# Alertmanager configuration
+
+# Load rules once and periodically evaluate them
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: "order"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+  - job_name: "inventory"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["host.docker.internal:8082"]
+  - job_name: "payment"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
