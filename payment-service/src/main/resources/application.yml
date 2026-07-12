@@ -53,3 +53,13 @@ logging:
     org.apache.kafka: WARN
     org.apache.kafka.clients.consumer.ConsumerConfig: OFF
     org.apache.kafka.clients.producer.ProducerConfig: OFF
+
+management:
+  metrics:
+    distribution.percentiles-histogram.http.server.requests: true
+    tags.application: ${spring.application.name}
+    export.prometheus.enabled: true
+  endpoints.web.exposure.include: "*"
+  endpoint:
+    health.show-details: always
+    prometheus.enabled: true

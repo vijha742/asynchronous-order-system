@@ -15,6 +15,9 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
       CLUSTER_ID: M0qFOqQpQc--EX_tbycX8w
+    networks:
+      - event-driven-ordering
+
   postgres-order:
     image: postgres:15
     environment:
@@ -30,6 +33,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - event-driven-ordering
+
   postgres-payment:
     image: postgres:15
     environment:
@@ -45,6 +51,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - event-driven-ordering
+
   postgres-inventory:
     image: postgres:15
     environment:
@@ -60,8 +69,52 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - event-driven-ordering
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - event-driven-ordering
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - event-driven-ordering
+
+networks:
+  event-driven-ordering:
+    driver: bridge
 
 volumes:
   postgres-order-data:
   postgres-payment-data:
   postgres-inventory-data:
+  prometheus-data:
+  grafana-data:
