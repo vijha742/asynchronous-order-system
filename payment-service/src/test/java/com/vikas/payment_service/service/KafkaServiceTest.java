@@ -1,5 +1,10 @@
 package com.vikas.payment_service.service;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import com.vikas.payment_service.service.PaymentProcessingService.PaymentResult;
 import com.vikas.payment_service.service.PaymentProcessingService.PaymentResultType;
 import com.vikas.shared.events.OrderCreatedEvent;
@@ -10,11 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaServiceTest {
@@ -35,7 +35,7 @@ class KafkaServiceTest {
     @Test
     void whenPaymentSuccessful_shouldPublishProcessedEvent() {
         String orderId = "test-order-123";
-        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2, System.currentTimeMillis());
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2);
         PaymentResult result = new PaymentResult(PaymentResultType.SUCCESS, "pay-123", 200.0);
 
         when(paymentProcessingService.processPayment(event)).thenReturn(result);
@@ -49,7 +49,7 @@ class KafkaServiceTest {
     @Test
     void whenPaymentFailed_shouldPublishFailedEvent() {
         String orderId = "test-order-123";
-        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2, System.currentTimeMillis());
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2);
         PaymentResult result = new PaymentResult(PaymentResultType.FAILED, "pay-123", 200.0);
 
         when(paymentProcessingService.processPayment(event)).thenReturn(result);
@@ -63,7 +63,7 @@ class KafkaServiceTest {
     @Test
     void whenAlreadyProcessed_shouldSkipPublishing() {
         String orderId = "test-order-123";
-        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2, System.currentTimeMillis());
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 1L, 2);
         PaymentResult result = new PaymentResult(PaymentResultType.ALREADY_PROCESSED, null, 0.0);
 
         when(paymentProcessingService.processPayment(event)).thenReturn(result);

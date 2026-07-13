@@ -11,5 +11,4 @@ public class OrderCreatedEvent {
     private String orderId;
     private Long productId;
     private Integer quantity;
-    private Long createdAt;
 }
