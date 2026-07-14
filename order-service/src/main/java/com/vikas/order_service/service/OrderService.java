@@ -1,7 +1,7 @@
 package com.vikas.order_service.service;
 
 import com.vikas.order_service.model.Order;
-import com.vikas.order_service.model.OrderPollerDTO;
+import com.vikas.order_service.model.OrderPollerEvent;
 import com.vikas.order_service.model.OrderStatus;
 import com.vikas.order_service.model.PollerStatus;
 import com.vikas.order_service.repository.OrderRepository;
@@ -45,7 +45,7 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING);
         orderRepository.save(order);
 
-        OrderPollerDTO pollerDTO = new OrderPollerDTO();
+        OrderPollerEvent pollerDTO = new OrderPollerEvent();
         pollerDTO.setOrderId(orderId);
         pollerDTO.setProductId(productId);
         pollerDTO.setQuantity(quantity);

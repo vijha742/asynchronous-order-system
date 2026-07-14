@@ -13,8 +13,9 @@ import lombok.RequiredArgsConstructor;
 @Data
 @Entity
 @RequiredArgsConstructor
-public class OrderPollerDTO {
-    @Id private String orderId;
+public class OrderPollerEvent {
+    @Id
+    private String orderId;
 
     private Long productId;
     private Integer quantity;
