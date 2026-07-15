@@ -14,14 +14,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ExecutionException;
 
 @Service
-@EnableScheduling
 @RequiredArgsConstructor
 @Slf4j
 public class ScheduledService {
@@ -29,11 +27,13 @@ public class ScheduledService {
     private final Outbox outbox;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
+    // NOTE: Work pending on retry/backoff logic for Poller so that resources aren't
+    // wasted...
+    // during infra failures.
     @Scheduled(fixedDelay = 5000)
     public void processOutbox() {
-        Page<OrderPollerEvent> pollerObjects =
-                outbox.findByStatus(
-                        PollerStatus.PENDING, PageRequest.of(0, 50, Sort.by("createdAt")));
+        Page<OrderPollerEvent> pollerObjects = outbox.findByStatus(
+                PollerStatus.PENDING, PageRequest.of(0, 50, Sort.by("createdAt")));
         for (OrderPollerEvent order : pollerObjects) {
             processItem(order);
         }
@@ -42,9 +42,8 @@ public class ScheduledService {
     @Transactional
     public void processItem(OrderPollerEvent order) {
 
-        OrderCreatedEvent event =
-                new OrderCreatedEvent(
-                        order.getOrderId(), order.getProductId(), order.getQuantity());
+        OrderCreatedEvent event = new OrderCreatedEvent(
+                order.getOrderId(), order.getProductId(), order.getQuantity());
         try {
             kafkaTemplate.send("order.created", order.getOrderId(), event).get();
             order.setStatus(PollerStatus.PROCESSED);
@@ -55,8 +54,9 @@ public class ScheduledService {
                     order.getProductId(),
                     order.getQuantity());
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            log.warn(
+                    "Cannot verify event publish result for Order with orderId {}",
+                    order.getOrderId());
         } catch (ExecutionException e) {
             log.error(
                     "Order couldn't get published for order with orderId : {}", order.getOrderId());

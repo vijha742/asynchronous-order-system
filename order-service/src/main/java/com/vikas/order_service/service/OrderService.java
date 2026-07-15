@@ -45,12 +45,12 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING);
         orderRepository.save(order);
 
-        OrderPollerEvent pollerDTO = new OrderPollerEvent();
-        pollerDTO.setOrderId(orderId);
-        pollerDTO.setProductId(productId);
-        pollerDTO.setQuantity(quantity);
-        pollerDTO.setStatus(PollerStatus.PENDING);
-        outbox.save(pollerDTO);
+        OrderPollerEvent pollerEvent = new OrderPollerEvent();
+        pollerEvent.setOrderId(orderId);
+        pollerEvent.setProductId(productId);
+        pollerEvent.setQuantity(quantity);
+        pollerEvent.setStatus(PollerStatus.PENDING);
+        outbox.save(pollerEvent);
 
         return order;
     }

@@ -46,7 +46,8 @@ public class KafkaService {
 
     @KafkaListener(topics = "payment.failed", groupId = "order-service")
     public void onPaymentFailed(PaymentFailedEvent event) {
-        if (processedPaymentEventsRepository.findById(event.getOrderId()).isPresent()) return;
+        if (processedPaymentEventsRepository.findById(event.getOrderId()).isPresent())
+            return;
         log.info("Payment failed for orderId={}, reason={}", event.getOrderId(), event.getReason());
         updateOrderStatus(event.getOrderId(), OrderStatus.PAYMENT_FAILED);
     }
@@ -70,7 +71,8 @@ public class KafkaService {
 
     @KafkaListener(topics = "inventory.insufficient", groupId = "order-service")
     public void onInventoryInsufficient(InventoryInsufficientEvent event) {
-        if (processedInventoryEventsRepository.findById(event.getOrderId()).isPresent()) return;
+        if (processedInventoryEventsRepository.findById(event.getOrderId()).isPresent())
+            return;
         log.info(
                 "Inventory insufficient for orderId={}, productId={}, requested={}",
                 event.getOrderId(),
@@ -107,8 +109,8 @@ public class KafkaService {
             } else {
                 log.debug(
                         "Order state stored has priority or transition is invalid. Hence the order"
-                            + " state will not change, Order : {}, Status: {}, Requested Status:"
-                            + " {}",
+                                + " state will not change, Order : {}, Status: {}, Requested Status:"
+                                + " {}",
                         orderId,
                         order.getStatus(),
                         newStatus);
