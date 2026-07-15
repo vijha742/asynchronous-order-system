@@ -1,14 +1,17 @@
 package com.vikas.order_service.service;
 
 import com.vikas.order_service.model.Order;
+import com.vikas.order_service.model.OrderPollerEvent;
 import com.vikas.order_service.model.OrderStatus;
+import com.vikas.order_service.model.PollerStatus;
 import com.vikas.order_service.repository.OrderRepository;
-import com.vikas.shared.events.OrderCreatedEvent;
+import com.vikas.order_service.repository.Outbox;
+
+import jakarta.transaction.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,7 +24,7 @@ import java.util.UUID;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final Outbox outbox;
 
     public Optional<Order> getOrderById(String orderId) {
         return orderRepository.findById(orderId);
@@ -31,6 +34,7 @@ public class OrderService {
         return orderRepository.findAll();
     }
 
+    @Transactional
     public Order createOrder(Long productId, Integer quantity) {
         String orderId = UUID.randomUUID().toString();
 
@@ -41,13 +45,12 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING);
         orderRepository.save(order);
 
-        OrderCreatedEvent event = new OrderCreatedEvent(orderId, productId, quantity, order.getCreatedAt());
-        kafkaTemplate.send("order.created", orderId, event);
-        log.info(
-                "Order created and event published: orderId={}, productId={}, quantity={}",
-                orderId,
-                productId,
-                quantity);
+        OrderPollerEvent pollerEvent = new OrderPollerEvent();
+        pollerEvent.setOrderId(orderId);
+        pollerEvent.setProductId(productId);
+        pollerEvent.setQuantity(quantity);
+        pollerEvent.setStatus(PollerStatus.PENDING);
+        outbox.save(pollerEvent);
 
         return order;
     }
